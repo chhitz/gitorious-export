@@ -15,7 +15,7 @@ end
 def export_projects_data(projects, output_dir)
   hashed = projects.map do |project|
     repositories = project.repositories.map do |repo|
-      {:name => repo.name, :description => repo.description,:owner_type => repo.owner_type, :owner_id => repo.owner_id, :clone_url => repo.clone_url, :committers => repo.committers.map{|c| c.login}}
+      {:name => repo.name, :description => repo.description,:owner_type => repo.owner_type, :owner_id => repo.owner_id, :clone_url => repo.clone_url, :committers => repo.committerships.committers.map{|c| c.members.map{|d| d.login}}.flatten}
     end
 
     {:title => project.title, :owner_type => project.owner_type, :owner_id => project.owner_id, :description => project.description, :slug => project.slug, :repositories => repositories}
@@ -33,13 +33,17 @@ def export_projects_source(projects, output_dir)
     project.repositories.each do |repo|
       project_dir = get_project_dir(output_dir, project.slug)
       Dir.chdir(project_dir) do
-        puts "  cloning #{repo.name} (#{repo.clone_url})"
-        `git clone #{repo.clone_url}`
-        empty = Dir.chdir(repo.name) do
-          num_refs = `git count-objects | cut -c 1`
-          num_refs == '0'
+        puts "  cloning #{repo.name} (#{repo.full_repository_path} => #{repo.name})"
+        `git clone #{repo.full_repository_path} #{repo.name}`
+        begin
+          empty = Dir.chdir(repo.name) do
+            num_refs = `git count-objects | cut -c 1`
+            num_refs == '0'
+          end
+          rm_rf repo.name if empty
+        rescue
+	  puts "  #{repo.name} was not cloned"
         end
-        rm_rf repo.name if empty
       end
     end
   end
@@ -52,7 +56,7 @@ end
 
 def export_users(users, output_dir)
   user_hashed = users.map do |user|
-    {:login => user.login, :email => user.email, :ad_guid => user.ad_guid, :ssh_keys => user.ssh_keys.map{|k| k.key}}
+    {:login => user.login, :email => user.email, :ssh_keys => user.ssh_keys.map{|k| k.key}}
   end
 
   File.open(File.join(output_dir, 'users.json'), 'w'){|f| f.write(user_hashed.to_json)}
