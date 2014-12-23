@@ -27,22 +27,31 @@ end
 def export_projects_source(projects, output_dir)
   projects.each do |project|
     project_dir = get_project_dir(output_dir, project.slug)
-    Dir.mkdir(project_dir)
+    begin
+      Dir.mkdir(project_dir)
+    end
 
     puts "#{project.title} cloning #{project.repositories.count}"
     project.repositories.each do |repo|
       project_dir = get_project_dir(output_dir, project.slug)
       Dir.chdir(project_dir) do
-        puts "  cloning #{repo.name} (#{repo.full_repository_path} => #{repo.name})"
-        `git clone #{repo.full_repository_path} #{repo.name}`
         begin
-          empty = Dir.chdir(repo.name) do
-            num_refs = `git count-objects | cut -c 1`
-            num_refs == '0'
+          Dir.chdir(repo.name) do
+            puts "  update #{repo.name}"
+            `git pull`
           end
-          rm_rf repo.name if empty
         rescue
-	  puts "  #{repo.name} was not cloned"
+          puts "  cloning #{repo.name} (#{repo.full_repository_path} => #{repo.name})"
+          `git clone #{repo.full_repository_path} #{repo.name}`
+          begin
+            empty = Dir.chdir(repo.name) do
+              num_refs = `git count-objects | cut -c 1`
+              num_refs == '0'
+            end
+            rm_rf repo.name if empty
+          rescue
+	    puts "  #{repo.name} was not cloned"
+          end
         end
       end
     end
@@ -72,8 +81,10 @@ end
 
 output_dir = get_output_dir(File.join('..', 'output'))
 
-rm_rf(output_dir) if File.directory?(output_dir)
-Dir.mkdir(output_dir)
+#rm_rf(output_dir) if File.directory?(output_dir)
+begin
+  Dir.mkdir(output_dir)
+end
 
 projects = Project.all
 
