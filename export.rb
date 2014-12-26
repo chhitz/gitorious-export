@@ -42,7 +42,7 @@ def export_projects_source(projects, output_dir)
           end
         rescue
           puts "  cloning #{repo.name} (#{repo.full_repository_path} => #{repo.name})"
-          `git clone #{repo.full_repository_path} #{repo.name}`
+          `git clone --bare #{repo.full_repository_path} #{repo.name}.git`
           begin
             empty = Dir.chdir(repo.name) do
               num_refs = `git count-objects | cut -c 1`
