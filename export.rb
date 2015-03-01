@@ -32,7 +32,7 @@ def export_projects_source(projects, output_dir)
     end
 
     puts "#{project.title} cloning #{project.repositories.count}"
-    project.repositories.each do |repo|
+    project.repositories.find(:all, :conditions => {:owner_type => "Group"}) do |repo|
       project_dir = get_project_dir(output_dir, project.slug)
       Dir.chdir(project_dir) do
         begin
@@ -86,7 +86,8 @@ begin
   Dir.mkdir(output_dir)
 end
 
-projects = Project.all
+# only export group repos, skip personal ones
+projects = Project.find(:all, :conditions => {:owner_type => "Group"})
 
 export_projects(projects, output_dir)
 export_users(User.all, output_dir)
