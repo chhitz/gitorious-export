@@ -14,8 +14,8 @@ end
 
 def export_projects_data(projects, output_dir)
   hashed = projects.map do |project|
-    repositories = project.repositories.map do |repo|
-      {:name => repo.name, :description => repo.description,:owner_type => repo.owner_type, :owner_id => repo.owner_id, :clone_url => repo.clone_url, :committers => repo.committerships.committers.map{|c| c.members.map{|d| d.login}}.flatten}
+    repositories = project.repositories.find(:all, :conditions => {:owner_type => "Group"}).map do |repo|
+      {:name => repo.name, :description => repo.description,:owner_type => repo.owner_type, :owner_id => repo.owner_id, :clone_url => repo.git_cloning? ? repo.git_clone_url : repo.ssh_clone_url, :ssh_clone_url => repo.ssh_clone_url, :committers => repo.committerships.committers.map{|c| c.members.map{|d| d.login}}.flatten}
     end
 
     {:title => project.title, :owner_type => project.owner_type, :owner_id => project.owner_id, :description => project.description, :slug => project.slug, :repositories => repositories}
@@ -29,22 +29,29 @@ def export_projects_source(projects, output_dir)
     project_dir = get_project_dir(output_dir, project.slug)
     begin
       Dir.mkdir(project_dir)
+    rescue
     end
 
     puts "#{project.title} cloning #{project.repositories.count}"
-    project.repositories.find(:all, :conditions => {:owner_type => "Group"}) do |repo|
+    project.repositories.find(:all, :conditions => {:owner_type => "Group"}).each do |repo|
+      if repo.name.include? "tracking"
+        next
+      end
+      if repo.git_cloning?
+	next
+      end
       project_dir = get_project_dir(output_dir, project.slug)
       Dir.chdir(project_dir) do
         begin
-          Dir.chdir(repo.name) do
+          Dir.chdir("#{repo.name}.git") do
             puts "  update #{repo.name}"
-            `git pull`
+            `git fetch #{repo.full_repository_path}`
           end
         rescue
-          puts "  cloning #{repo.name} (#{repo.full_repository_path} => #{repo.name})"
+          puts "  cloning #{repo.name} (#{repo.full_repository_path} => #{repo.name}.git)"
           `git clone --bare #{repo.full_repository_path} #{repo.name}.git`
           begin
-            empty = Dir.chdir(repo.name) do
+            empty = Dir.chdir("#{repo.name}.git") do
               num_refs = `git count-objects | cut -c 1`
               num_refs == '0'
             end
@@ -84,6 +91,7 @@ output_dir = get_output_dir(File.join('..', 'output'))
 #rm_rf(output_dir) if File.directory?(output_dir)
 begin
   Dir.mkdir(output_dir)
+rescue
 end
 
 # only export group repos, skip personal ones
